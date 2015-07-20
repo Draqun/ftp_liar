@@ -5,7 +5,7 @@ require 'ftp_liar/version'
 
 Gem::Specification.new do |spec|
   spec.name          = "ftp_liar"
-  spec.version       = FtpLiar::VERSION
+  spec.version       = FTPLiar::VERSION
   spec.authors       = ["Damian Giebas"]
   spec.email         = ["damian.giebas@gmail.com"]
   spec.date          = '2015-07-20'

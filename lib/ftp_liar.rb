@@ -1,8 +1,8 @@
 require "ftp_liar/version"
 require 'fileutils'
 
-module FtpLiar
-  class FtpLiar
+module FTPLiar
+  class FTPLiar
     # FTP Liar
     # Simple class for test aplication using Net::FTP
 
