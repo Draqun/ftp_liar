@@ -12,12 +12,12 @@ module FtpLiar
 
     def getbinaryfile(remotefile, localfile = nil, blocksize = nil)
       # A simple method that manages to copy a remote file to local
-      FileUtils.cp(remotefile, localfile if localfile else File.basename(remotefile))
+      FileUtils.cp(remotefile, localfile ? localfile : File.basename(remotefile))
     end
 
     def putbinaryfile(localfile, remotefile = nil, blocksize = nil)
       # A simple method that manages to copy a local file on the FTP.
-      FileUtils.cp(localfile, remotefile if remotefile else File.basename(localfile))
+      FileUtils.cp(localfile, remotefile ? remotefile : File.basename(localfile))
     end
 
     def chdir(path)
