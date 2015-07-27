@@ -22,14 +22,11 @@ require 'ftp_liar'
 require 'rubygems'
 require 'pry'
 require 'simplecov'
-require 'simplecov-rcov'
-
-SimpleCov.formatter = SimpleCov::Formatter::HTMLFormatter #SimpleCov::Formatter::RcovFormatter
-SimpleCov.start 'rails' do
-  add_filter "/vendor/"
-  add_filter "/ruby_gems/"
-  add_filter "/spec/"
+SimpleCov.formatter = SimpleCov::Formatter::HTMLFormatter
+SimpleCov.start do
+  add_group 'Libraries', 'lib'
 end
+
 
 RSpec.configure do |config|
   # rspec-expectations config goes here. You can use an alternate
