@@ -1,6 +1,7 @@
 require "ftp_liar/version"
 require 'fileutils'
 require 'tmpdir'
+require 'faker'
 
 module FTPLiar
   class FTPLiar
