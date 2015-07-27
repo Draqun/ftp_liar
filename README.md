@@ -1,8 +1,6 @@
 # FTPLiar
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/ftp_liar`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+This is experimental gem to simulate Net::FTP object using temporary directory. You use it or your own risk.
 
 ## Installation
 
@@ -21,9 +19,19 @@ Or install it yourself as:
     $ gem install ftp_liar
 
 ## Usage
+Use FTPLiar class with proxy pattern, override interesting class.
 
-TODO: Write usage instructions here
+```ruby
+class MyFTP
+  def initialize(*args)
+    @ftp_liar = FTPLiar::FTPLiar.new
+  end
 
+  def method_missing(name, *args)
+    @ftp_liar.send(name, *args)
+  end
+end
+```
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake rspec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
