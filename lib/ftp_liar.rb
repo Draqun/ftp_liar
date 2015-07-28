@@ -44,7 +44,9 @@ module FTPLiar
     def chdir(path)
       # Changes the (remote) directory.
       raise Exception("530 Please login with USER and PASS.") unless @is_connection
-      actual_path = Dir.pwd
+      if !path.include?(@ftp_directory)
+        path = File.join(@ftp_directory, path[1..-1])
+      end
       FileUtils.cd(path)
       nil
     end
@@ -126,11 +128,9 @@ module FTPLiar
 
     def nlst(path = '.')
       # A simple method to list data in directory, return list with filename if file
-        raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Exception("530 Please login with USER and PASS.") unless @is_connection
       if File.file?(path)
         [path]
-      elsif Dir.pwd === @ftp_directory
-        Dir.entries(@ftp_directory).sort[2..1]
       else
         Dir.entries(path).sort[2..-1]
       end
