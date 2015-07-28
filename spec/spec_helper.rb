@@ -18,14 +18,13 @@
 # See http://rubydoc.info/gems/rspec-core/RSpec/Core/Configuration
 ENV["RAILS_ENV"] ||= 'test'
 $LOAD_PATH.unshift File.expand_path('../../lib', __FILE__)
-require 'ftp_liar'
-require 'rubygems'
-require 'pry'
 require 'simplecov'
 SimpleCov.formatter = SimpleCov::Formatter::HTMLFormatter
 SimpleCov.start do
   add_group 'Libraries', 'lib'
 end
+require 'pry'
+require 'ftp_liar'
 
 
 RSpec.configure do |config|

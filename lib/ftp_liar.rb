@@ -16,6 +16,12 @@ module FTPLiar
       FileUtils.cd(@ftp_directory)
       @is_connection = true
       @binary = true
+      ObjectSpace.define_finalizer(self, self.method(:finalize))
+    end
+
+    def finalize(object_id)
+      # Finalizer to delete ftp_liar directory
+      FileUtils.rm_rf(@ftp_directory)
     end
 
     def abort()
@@ -40,9 +46,6 @@ module FTPLiar
       raise Exception("530 Please login with USER and PASS.") unless @is_connection
       actual_path = Dir.pwd
       FileUtils.cd(path)
-      unless Dir.pwd.include?(@ftp_directory)
-        FileUtils.cd(actual_path)
-      end
       nil
     end
 
