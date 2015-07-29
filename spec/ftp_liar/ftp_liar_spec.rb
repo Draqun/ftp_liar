@@ -184,12 +184,6 @@ RSpec.describe FTPLiar::FTPLiar do
       end
     end
 
-    describe "getdir" do
-      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
-
-      it { expect( @ftp_liar.getdir ).to eq "/tmp/.ftp_liar" }
-    end
-
     describe "login" do
       before(:each) do
         @ftp_liar = FTPLiar::FTPLiar.new
@@ -201,6 +195,25 @@ RSpec.describe FTPLiar::FTPLiar do
       it { expect{ @ftp_liar.login("anonymous") }.to change{@ftp_liar.closed?}.from(true).to(false) }
       it { expect{ @ftp_liar.login() }.to change{@ftp_liar.closed?}.from(true).to(false) }
       it { expect{ @ftp_liar.login('foo', 'bar') }.to change{@ftp_liar.closed?}.from(true).to(false) }
+    end
+
+    describe "mkdir" do
+      describe "when is not connected" do
+        before(:all) do
+          @ftp_liar = FTPLiar::FTPLiar.new
+          @ftp_liar.close
+        end
+        # TODO Do more test
+        it { expect{ @ftp_liar.mkdir("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+      end
+    end
+
+    describe "pwd" do
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+
+      # TODO Check it raise error before login
+
+      it { expect( @ftp_liar.getdir ).to eq "/tmp/.ftp_liar" }
     end
   end
 end

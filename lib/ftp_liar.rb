@@ -14,7 +14,6 @@ module FTPLiar
     def initialize(host = nil, user = nil, passwd = nil, acct = nil)
       @ftp_directory = File.join(Dir.tmpdir, '.ftp_liar')
       FileUtils.mkdir_p(@ftp_directory)
-      FileUtils.cd(@ftp_directory)
       @binary = true
       @passive = false
       ObjectSpace.define_finalizer(self, self.method(:finalize))
@@ -23,6 +22,7 @@ module FTPLiar
       else
         @is_connect = true
       end
+      chdir("/")
     end
 
     def finalize(object_id)
@@ -48,7 +48,11 @@ module FTPLiar
       # Changes the (remote) directory.
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
       if path[0] == "/"
-        path = File.join(@ftp_directory, path[1..-1])
+        if path[1..-1].nil?
+          path = @ftp_directory
+        else
+          path = File.join(@ftp_directory, path[1..-1])
+        end
       end
 
       unless absolute_path_indicates_to_ftp_directory?(path) && Dir.exist?(path)
@@ -126,13 +130,11 @@ module FTPLiar
       # A simple method that manages to copy a remote file to local
       get(*args)
     end
-    # :nocov:
 
     def getdir()
       pwd
     end
 
-    # :nocov:
     def gettextfile(*args)
       get(*args)
     end
@@ -154,6 +156,7 @@ module FTPLiar
       @is_connect = true
     end
 
+    # :nocov:
     def ls(*args)
       # Alias for list
       list(*args)
@@ -162,10 +165,18 @@ module FTPLiar
     def mdtm(filename)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     def mkdir(dirname)
-      new_dirname = escape_name(dirname)
-      Dir.mkdir(new_dirname)
+      # Creates a remote directory.
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      if dirname.split("/").include?("..") || dirname.include?("/")
+        raise Net::FTPPermError.new("550")
+      end
+      Dir.mkdir( File.join(pwd, dirname) )
+      dirname
+    rescue Errno::ENOENT
+      raise Net::FTPPermError.new("550")
     end
 
     def mtime(filename, local = false)
@@ -268,10 +279,6 @@ module FTPLiar
     private
     attr_accessor :ftp_directory
     attr_accessor :is_connection
-
-    def escape_name(filename)
-      (dirname.split("/") - [".."]).join
-    end
 
     def copy_file(from, to)
       FileUtils.copy_file(from, to)
