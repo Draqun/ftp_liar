@@ -1,4 +1,5 @@
 require "ftp_liar/version"
+require_relative 'ftp_liar_net'
 require 'fileutils'
 require 'tmpdir'
 require 'faker'
@@ -8,15 +9,20 @@ module FTPLiar
     # FTP Liar
     # Simple class for test aplication using Net::FTP
     attr_writer :open_timeout, :read_timeout, :debug_mode, :passive
-    attr_reader :binary
+    attr_accessor :binary
 
     def initialize(host = nil, user = nil, passwd = nil, acct = nil)
-      @ftp_directory = File.join(Dir.tmpdir, Faker::Lorem.words(4).join('_'))
+      @ftp_directory = File.join(Dir.tmpdir, '.ftp_liar')
       FileUtils.mkdir_p(@ftp_directory)
       FileUtils.cd(@ftp_directory)
-      @is_connection = true
       @binary = true
+      @passive = false
       ObjectSpace.define_finalizer(self, self.method(:finalize))
+      if !(user.nil? && passwd.nil?) && (user.nil? || passwd.nil?)
+        raise Net::FTPPermError.new("530 User cannot log in.")
+      else
+        @is_connection = true
+      end
     end
 
     def finalize(object_id)
@@ -24,6 +30,7 @@ module FTPLiar
       FileUtils.rm_rf(@ftp_directory)
     end
 
+    # :nocov:
     def abort()
       # Aborts the previous command (ABOR command).
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
@@ -35,29 +42,30 @@ module FTPLiar
       # This is a less common FTP command, to send account information if the destination host requires it.
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
-
-    def binary= (newmode)
-      # A setter to toggle transfers in binary mode. newmode is either true or false
-      @binary = newmode
-    end
+    # :nocov:
 
     def chdir(path)
       # Changes the (remote) directory.
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
-      if !path.include?(@ftp_directory)
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connection
+      if path[0] == "/"
         path = File.join(@ftp_directory, path[1..-1])
       end
-      FileUtils.cd(path)
+      begin
+        FileUtils.cd(path)
+      rescue
+        raise Net::FTPPermError.new("500")
+      end
       nil
     end
 
     def close()
       # Closes the connection. Further operations are impossible until you open a new connection with connect.
+      @is_connection = false
       ""
     end
 
     def closed?()
-      # Returns true iff the connection is closed.
+      # Returns true if the connection is closed.
       !@is_connection
     end
 
@@ -68,7 +76,15 @@ module FTPLiar
 
     def delete(filename)
       # Method remove file on FTP
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connection
+      if filename[0] == "/"
+        filename = File.join(@ftp_directory, filename[1..-1])
+      else
+        filename = File.join(@ftp_directory, filename)
+      end
+      unless File.exist?(filename) || File.absolute_path(filename).start_with?(@ftp_directory)
+        raise Net::FTPPermError.new("550")
+      end
       File.delete(filename)
     end
 

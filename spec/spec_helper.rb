@@ -23,9 +23,8 @@ SimpleCov.formatter = SimpleCov::Formatter::HTMLFormatter
 SimpleCov.start do
   add_group 'Libraries', 'lib'
 end
-require 'pry'
+require 'byebug'
 require 'ftp_liar'
-
 
 RSpec.configure do |config|
   # rspec-expectations config goes here. You can use an alternate
