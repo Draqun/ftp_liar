@@ -50,6 +50,11 @@ module FTPLiar
       if path[0] == "/"
         path = File.join(@ftp_directory, path[1..-1])
       end
+
+      unless File.absolute_path(path).start_with?(@ftp_directory) && Dir.exist?(path)
+        raise Net::FTPPermError.new("500")
+      end
+
       begin
         FileUtils.cd(path)
       rescue
@@ -82,10 +87,11 @@ module FTPLiar
       else
         filename = File.join(@ftp_directory, filename)
       end
-      unless File.exist?(filename) || File.absolute_path(filename).start_with?(@ftp_directory)
+      unless File.absolute_path(filename).start_with?(@ftp_directory) && File.exist?(filename)
         raise Net::FTPPermError.new("550")
       end
       File.delete(filename)
+      nil
     end
 
     def dir(*args)

@@ -70,8 +70,10 @@ RSpec.describe FTPLiar::FTPLiar do
         it { expect( @ftp_liar.pwd ).to eq("/tmp/.ftp_liar") }
       end
 
-      it "should raise error" do
-        expect{ @ftp_liar.chdir("/tmp/.ftp_liar") }.to raise_error(Net::FTPPermError, "500")
+      describe "should raise error" do
+        it { expect{ @ftp_liar.chdir("/tmp/.ftp_liar") }.to raise_error(Net::FTPPermError, "500") }
+        it { expect{ @ftp_liar.chdir("../../tmp") }.to raise_error(Net::FTPPermError, "500") }
+        it { expect{ @ftp_liar.chdir("/../../tmp") }.to raise_error(Net::FTPPermError, "500") }
       end
     end
   end
@@ -103,9 +105,40 @@ RSpec.describe FTPLiar::FTPLiar do
         expect{ @ftp_liar.delete("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.")
       end
     end
-    #before(:all) do
-    #  @ftp_liar = FTPLiar::FTPLiar.new
-    #  FileUtils.touch
-    #end
+
+    describe "when is connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+      end
+
+      describe "should raise Net::FTPPermError" do
+        it { expect{ @ftp_liar.delete("bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.delete("/bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+
+      describe "should raise Net::FTPPermError when file not exist" do
+        it { expect{ @ftp_liar.delete("bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.delete("/bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+
+      describe "should raise Net::FTPPermError when target is not in ftp_liar temporary directory" do
+        it { expect{ @ftp_liar.delete("../../bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.delete("/../../bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+
+      describe "should delete file" do
+        before(:each) { FileUtils.touch("/tmp/.ftp_liar/foo") }
+
+        it "should delete file, when path is relative" do
+          @ftp_liar.delete("foo")
+          expect( File.exist?("/tmp/.ftp_liar/foo") ).to be false
+        end
+
+        it "should delete file, when path is absolute" do
+          @ftp_liar.delete("/foo")
+          expect( File.exist?("/tmp/.ftp_liar/foo") ).to be false
+        end
+      end
+    end
   end
 end
