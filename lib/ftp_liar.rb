@@ -21,7 +21,7 @@ module FTPLiar
       if !(user.nil? && passwd.nil?) && (user.nil? || passwd.nil?)
         raise Net::FTPPermError.new("530 User cannot log in.")
       else
-        @is_connection = true
+        @is_connect = true
       end
     end
 
@@ -46,12 +46,12 @@ module FTPLiar
 
     def chdir(path)
       # Changes the (remote) directory.
-      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connection
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
       if path[0] == "/"
         path = File.join(@ftp_directory, path[1..-1])
       end
 
-      unless File.absolute_path(path).start_with?(@ftp_directory) && Dir.exist?(path)
+      unless absolute_path_indicates_to_ftp_directory?(path) && Dir.exist?(path)
         raise Net::FTPPermError.new("500")
       end
 
@@ -65,55 +65,74 @@ module FTPLiar
 
     def close()
       # Closes the connection. Further operations are impossible until you open a new connection with connect.
-      @is_connection = false
+      @is_connect = false
       ""
     end
 
     def closed?()
       # Returns true if the connection is closed.
-      !@is_connection
+      !@is_connect
     end
 
     def connect(host, port = 21)
       # Method immitate connect method in Net::FTP
+      @is_connect = true
       nil
     end
 
     def delete(filename)
       # Method remove file on FTP
-      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connection
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
       if filename[0] == "/"
         filename = File.join(@ftp_directory, filename[1..-1])
       else
         filename = File.join(@ftp_directory, filename)
       end
-      unless File.absolute_path(filename).start_with?(@ftp_directory) && File.exist?(filename)
+      unless absolute_path_indicates_to_ftp_directory?(filename) && File.exist?(filename)
         raise Net::FTPPermError.new("550")
       end
       File.delete(filename)
       nil
     end
 
+    # :nocov:
     def dir(*args)
       # Alias for list
       list(*args)
     end
+    # :nocov:
 
-    def get(remotefile, localfile = nil, blocksize = nil)
+    def get(remotefile, localfile = File.basename(remotefile), blocksize = nil)
       # A simple method that manages to copy a remote file to local
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
-      FileUtils.cp(remotefile, localfile ? localfile : File.basename(remotefile))
+      raise Net::FTPPermError("530 Please login with USER and PASS.") unless @is_connect
+
+      unless absolute_path_indicates_to_ftp_directory?(remotefile) && File.exist?(remotefile)
+        raise Net::FTPPermError.new("550")
+      end
+
+      localdir = localfile.split("/")[0...-1].join("/")
+      if File.directory?(localfile)
+        raise Errno::EISDIR
+      end
+      unless Dir.exist?(localdir)
+        raise Errno::ENOENT
+      end
+      copy_file(remotefile, localfile)
+      nil
     end
 
+    # :nocov:
     def getbinaryfile(*args)
       # A simple method that manages to copy a remote file to local
       get(*args)
     end
+    # :nocov:
 
     def getdir()
       pwd
     end
 
+    # :nocov:
     def gettextfile(*args)
       get(*args)
     end
@@ -125,9 +144,10 @@ module FTPLiar
     def list(*args)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     def login(*args)
-      @is_connection = true
+      @is_connect = true
     end
 
     def ls(*args)
@@ -150,7 +170,7 @@ module FTPLiar
 
     def nlst(path = '.')
       # A simple method to list data in directory, return list with filename if file
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Exception("530 Please login with USER and PASS.") unless @is_connect
       if File.file?(path)
         [path]
       else
@@ -165,7 +185,7 @@ module FTPLiar
 
     def put(localfile, remotefile = nil, blocksize = nil)
       # A simple method that manages to copy a local file on the FTP.
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Exception("530 Please login with USER and PASS.") unless @is_connect
       FileUtils.cp(localfile, remotefile ? remotefile : File.basename(localfile))
     end
 
@@ -180,7 +200,7 @@ module FTPLiar
 
     def pwd
       # Method return actual directory
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Exception("530 Please login with USER and PASS.") unless @is_connect
       Dir.pwd
     end
 
@@ -201,7 +221,7 @@ module FTPLiar
 
     def rmdir(dirname)
       # Method remove directory on FTP
-      raise Exception("530 Please login with USER and PASS.") unless @is_connection
+      raise Exception("530 Please login with USER and PASS.") unless @is_connect
       Dir.delete(dirname)
     end
 
@@ -241,18 +261,26 @@ module FTPLiar
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
 
-    class << self
-      def open(host, *args)
-        FTPLiar.new(host, *args)
-      end
-    end
-
     private
     attr_accessor :ftp_directory
     attr_accessor :is_connection
 
     def escape_name(filename)
       (dirname.split("/") - [".."]).join
+    end
+
+    def copy_file(from, to)
+      FileUtils.copy_file(from, to)
+    end
+
+    def absolute_path_indicates_to_ftp_directory?(path)
+      File.absolute_path(path).start_with?(@ftp_directory)
+    end
+
+    class << self
+      def open(host, *args)
+        FTPLiar.new(host, *args)
+      end
     end
   end
 end

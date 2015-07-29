@@ -2,13 +2,8 @@ require 'spec_helper'
 
 RSpec.describe FTPLiar::FTPLiar do
   describe "initializer" do
-    it "should raise Net::FTPPermError" do
-      expect{ FTPLiar::FTPLiar.new('127.0.0.1', user = 'foo') }.to raise_error(Net::FTPPermError, "530 User cannot log in.")
-    end
-
-    it "should raise Net::FTPPermError" do
-      expect{ FTPLiar::FTPLiar.new('127.0.0.1', passwd = 'bar') }.to raise_error(Net::FTPPermError, "530 User cannot log in.")
-    end
+    it { expect{ FTPLiar::FTPLiar.new('127.0.0.1', user = 'foo') }.to raise_error(Net::FTPPermError, "530 User cannot log in.") }
+    it { expect{ FTPLiar::FTPLiar.new('127.0.0.1', passwd = 'bar') }.to raise_error(Net::FTPPermError, "530 User cannot log in.") }
 
     describe "work without any data" do
       before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
@@ -45,7 +40,7 @@ RSpec.describe FTPLiar::FTPLiar do
 
 
     it "set variable as false" do
-      expect( lambda { @ftp_liar.binary = false } ).to change{@ftp_liar.binary}.from(true).to(false)
+      expect{ @ftp_liar.binary = false }.to change{@ftp_liar.binary}.from(true).to(false)
     end
   end
 
@@ -94,6 +89,17 @@ RSpec.describe FTPLiar::FTPLiar do
     it { expect( @ftp_liar.closed? ).to be true }
   end
 
+  describe "connect" do
+    before(:all) do
+      @ftp_liar = FTPLiar::FTPLiar.new
+      @ftp_liar.close
+    end
+
+    it "should be true after method connect" do
+      expect{ @ftp_liar.connect("127.0.0.1") }.to change{@ftp_liar.closed?}.from(true).to(false)
+    end
+  end
+
   describe "delete" do
     describe "when is not connected" do
       before(:all) do
@@ -101,20 +107,11 @@ RSpec.describe FTPLiar::FTPLiar do
         @ftp_liar.close
       end
 
-      it "should raise Net::FTPPermError" do
-        expect{ @ftp_liar.delete("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.")
-      end
+      it { expect{ @ftp_liar.delete("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
     end
 
     describe "when is connected" do
-      before(:all) do
-        @ftp_liar = FTPLiar::FTPLiar.new
-      end
-
-      describe "should raise Net::FTPPermError" do
-        it { expect{ @ftp_liar.delete("bar") }.to raise_error(Net::FTPPermError, "550") }
-        it { expect{ @ftp_liar.delete("/bar") }.to raise_error(Net::FTPPermError, "550") }
-      end
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
 
       describe "should raise Net::FTPPermError when file not exist" do
         it { expect{ @ftp_liar.delete("bar") }.to raise_error(Net::FTPPermError, "550") }
@@ -137,6 +134,52 @@ RSpec.describe FTPLiar::FTPLiar do
         it "should delete file, when path is absolute" do
           @ftp_liar.delete("/foo")
           expect( File.exist?("/tmp/.ftp_liar/foo") ).to be false
+        end
+      end
+    end
+  end
+
+  describe "get/getbinaryfile/gettextfile" do
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
+
+      it { expect{ @ftp_liar.delete("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+    end
+
+    describe "when is connected" do
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+
+      describe "should raise Net::FTPPermError when file not exist" do
+        it { expect{ @ftp_liar.get("bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.get("/bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+
+      describe "should raise Net::FTPPermError when target is not in ftp_liar temporary directory" do
+        it { expect{ @ftp_liar.get("../../bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.get("/../../bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+
+      describe "file exist on server" do
+        before(:each) { FileUtils.touch("/tmp/.ftp_liar/foo") }
+        after(:each) { FileUtils.rm("/tmp/.ftp_liar/foo") }
+
+        describe "should raise Errno::ENOENT when dir in local computer does not exist" do
+          it { expect{ @ftp_liar.get("foo", "/tmp/bas/foo") }.to raise_error(Errno::ENOENT) }
+        end
+
+        describe "should raise Errno::EISDIR when localpath is dir" do
+          it { expect{ @ftp_liar.get("foo", "/tmp") }.to raise_error(Errno::EISDIR) }
+        end
+
+        describe "should copy file from ftp using relative path" do
+          after(:all) { FileUtils.rm("/tmp/foo") }
+          it do
+            @ftp_liar.get("foo", "/tmp/foo")
+            expect( File.exist?("/tmp/foo") ).to be true
+          end
         end
       end
     end
