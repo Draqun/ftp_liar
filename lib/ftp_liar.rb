@@ -75,7 +75,7 @@ module FTPLiar
     end
 
     def connect(host, port = 21)
-      # Method immitate connect method in Net::FTP
+      # Method imitate connect method in Net::FTP
       @is_connect = true
       nil
     end
@@ -146,7 +146,11 @@ module FTPLiar
     end
     # :nocov:
 
-    def login(*args)
+    def login(user = "anonymous", passwd = nil, acct = nil)
+      # Method imitate login to ftp. When login is "anonymous" it "connect" without password
+      if user != "anonymous" && (user.nil? || passwd.nil?)
+        raise Net::FTPPermError.new("530 User cannot log in.")
+      end
       @is_connect = true
     end
 

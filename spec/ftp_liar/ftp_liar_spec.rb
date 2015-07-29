@@ -183,5 +183,24 @@ RSpec.describe FTPLiar::FTPLiar do
         end
       end
     end
+
+    describe "getdir" do
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+
+      it { expect( @ftp_liar.getdir ).to eq "/tmp/.ftp_liar" }
+    end
+
+    describe "login" do
+      before(:each) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
+
+      it { expect{ @ftp_liar.login("foo") }.to raise_error(Net::FTPPermError, "530 User cannot log in.") }
+      it { expect{ @ftp_liar.login(passwd = "bar") }.to raise_error(Net::FTPPermError, "530 User cannot log in.") }
+      it { expect{ @ftp_liar.login("anonymous") }.to change{@ftp_liar.closed?}.from(true).to(false) }
+      it { expect{ @ftp_liar.login() }.to change{@ftp_liar.closed?}.from(true).to(false) }
+      it { expect{ @ftp_liar.login('foo', 'bar') }.to change{@ftp_liar.closed?}.from(true).to(false) }
+    end
   end
 end
