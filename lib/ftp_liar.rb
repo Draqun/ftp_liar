@@ -48,10 +48,10 @@ module FTPLiar
       # Changes the (remote) directory.
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
       if path[0] == "/"
-        if path[1..-1].nil?
-          path = @ftp_directory
+        path = if path.length == 1
+          @ftp_directory
         else
-          path = File.join(@ftp_directory, path[1..-1])
+          File.join(@ftp_directory, path[1..-1])
         end
       end
 
@@ -87,10 +87,10 @@ module FTPLiar
     def delete(filename)
       # Method remove file on FTP
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
-      if filename[0] == "/"
-        filename = File.join(@ftp_directory, filename[1..-1])
+      filename = if filename[0] == "/"
+        File.join(@ftp_directory, filename[1..-1])
       else
-        filename = File.join(@ftp_directory, filename)
+        File.join(pwd, filename)
       end
       unless absolute_path_indicates_to_ftp_directory?(filename) && File.exist?(filename)
         raise Net::FTPPermError.new("550")
@@ -109,6 +109,13 @@ module FTPLiar
     def get(remotefile, localfile = File.basename(remotefile), blocksize = nil)
       # A simple method that manages to copy a remote file to local
       raise Net::FTPPermError("530 Please login with USER and PASS.") unless @is_connect
+      if remotefile[0] == "/"
+        if remotefile.length > 1
+          remotefile = File.join(pwd, remotefile[1..-1])
+        elsif remotefile == "/"
+          raise Errno::EISDIR
+        end
+      end
 
       unless absolute_path_indicates_to_ftp_directory?(remotefile) && File.exist?(remotefile)
         raise Net::FTPPermError.new("550")
@@ -179,31 +186,67 @@ module FTPLiar
       raise Net::FTPPermError.new("550")
     end
 
+    # :nocov:
     def mtime(filename, local = false)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     def nlst(path = '.')
       # A simple method to list data in directory, return list with filename if file
-      raise Exception("530 Please login with USER and PASS.") unless @is_connect
-      if File.file?(path)
+      # Method does not work as method in Net::FTP. I started topic about it on https://bugs.ruby-lang.org/issues/11407 because I think original method has bugs
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      new_path = if path[0] == "/"
+        File.join(pwd, path[1..-1])
+      else
+        File.join(pwd, path)
+      end
+
+      unless absolute_path_indicates_to_ftp_directory?(new_path)
+        raise Net::FTPPermError.new("550")
+      end
+
+      if File.file?(new_path)
         [path]
       else
-        Dir.entries(path).sort[2..-1]
+        Dir.entries(new_path).sort[2..-1]
       end
     end
 
+    # :nocov:
     def noop()
       # Does nothing
       nil
     end
+    # :nocov:
 
-    def put(localfile, remotefile = nil, blocksize = nil)
+    def put(localfile, remotefile = File.basename(localfile), blocksize = nil)
       # A simple method that manages to copy a local file on the FTP.
-      raise Exception("530 Please login with USER and PASS.") unless @is_connect
-      FileUtils.cp(localfile, remotefile ? remotefile : File.basename(localfile))
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      if File.directory?(localfile)
+        raise Errno::EISDIR
+      end
+      unless File.exist?(localfile)
+        raise Errno::ENOENT
+      end
+
+      if remotefile[0] == "/" && remotefile.length > 1
+        remotefile = File.join(@ftp_directory, remotefile[1..-1])
+      end
+
+      unless absolute_path_indicates_to_ftp_directory?(remotefile)
+        raise Net::FTPPermError.new("550")
+      end
+
+      if  File.exist?(remotefile)
+        raise Net::FTPPermError.new("550")
+      end
+
+      copy_file(localfile, remotefile)
+      nil
     end
 
+    # :nocov:
     def putbinaryfile(*args)
       # A simple method that manages to copy a local file on the FTP.
       put(*args)
@@ -212,6 +255,7 @@ module FTPLiar
     def puttextfile(*args)
       put(*args)
     end
+    # :nocov:
 
     def pwd
       # Method return actual directory
