@@ -81,12 +81,9 @@ RSpec.describe FTPLiar::FTPLiar do
   end
 
   describe "closed? after close" do
-    before(:all) do
-      @ftp_liar = FTPLiar::FTPLiar.new
-      @ftp_liar.close
-    end
+    before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
 
-    it { expect( @ftp_liar.closed? ).to be true }
+    it { expect{ @ftp_liar.close }.to change{ @ftp_liar.closed? }.from(false).to(true) }
   end
 
   describe "connect" do
@@ -363,6 +360,108 @@ RSpec.describe FTPLiar::FTPLiar do
         end
 
         it { expect( @ftp_liar.pwd ).to eq "/foo" }
+      end
+    end
+  end
+
+  describe "quit" do
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
+
+      it { expect{ @ftp_liar.quit }.to raise_error(Errno::EPIPE, "Broken pipe") }
+    end
+
+    describe "when is connected" do
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+
+      it { expect{ @ftp_liar.quit }.to change{ @ftp_liar.closed? }.from(false).to(true) }
+    end
+  end
+
+  describe "rename" do
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
+
+      it { expect{ @ftp_liar.rename("foo", "bar") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+    end
+
+    describe "when is connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.mkdir("hip")
+
+        %w( foo bar bas ).each do |i|
+          @ftp_liar.mkdir(i)
+          @ftp_liar.mkdir("#{i}by-foo")
+          @ftp_liar.mkdir("hip/#{i}")
+          @ftp_liar.mkdir("hip/#{i}by-foo")
+
+          FileUtils.touch("/tmp/.ftp_liar/#{i}.file")
+          FileUtils.touch("/tmp/.ftp_liar/#{i}by-foo.file")
+          FileUtils.touch("/tmp/.ftp_liar/hip/#{i}.file")
+          FileUtils.touch("/tmp/.ftp_liar/hip/#{i}by-foo.file")
+        end
+      end
+
+      after(:all) do
+        %w( foo bar bas ).each do |i|
+          @ftp_liar.delete("#{i}by.file")
+          @ftp_liar.delete("#{i}by-bar.file")
+          @ftp_liar.delete("hip/#{i}by.file")
+          @ftp_liar.delete("hip/#{i}by-bar.file")
+
+          @ftp_liar.rmdir("#{i}by")
+          @ftp_liar.rmdir("#{i}by-bar")
+          @ftp_liar.rmdir("hip/#{i}by")
+          @ftp_liar.rmdir("hip/#{i}by-bar")
+        end
+
+        @ftp_liar.rmdir("hip")
+      end
+
+      describe "when one of paths is \"/\"" do
+        it { expect{ @ftp_liar.rename("/", "hip") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.rename("/", "/hip") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.rename("foo", "/") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.rename("/foo", "/") }.to raise_error(Net::FTPPermError, "550") }
+      end
+      describe "when one of paths does not indicate to ftp directory" do
+        it { expect{ @ftp_liar.rename("../foo", "bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.rename("/../../foo", "bar") }.to raise_error(Net::FTPPermError, "550") }
+        it { expect{ @ftp_liar.rename("/foo", "../../bar") }.to raise_error(Net::FTPPermError, "550") }
+      end
+      describe "when renamed directory is no empty" do
+        it { expect{ @ftp_liar.rename("/hip", "/fooby") }.to raise_error(Net::FTPPermError, "550") }
+      end
+      describe "from root folder" do
+        %w( directory file ).each do |o|
+          eval(%Q{
+            describe "rename #{o}" do
+              [ %w( /foo /fooby ), %w( /bar barby ), %w( bas basby ), %w( /hip/foo /hip/fooby ), %w( /hip/bar hip/barby ), %w( hip/bas hip/basby ) ].each do |names|
+                it { expect( @ftp_liar.rename(o == 'file' ? names[0] + '.' + o : names[0], o == 'file' ? names[1] + '.' + o : names[1]) ).to eq nil }
+              end
+            end
+          })
+        end
+      end
+      describe "from hip folder" do
+        before(:all) { @ftp_liar.chdir("hip") }
+        after(:all) { @ftp_liar.chdir("..") }
+        %w( directory file ).each do |o|
+          eval(%Q{
+            describe "rename #{o}" do
+              [ %w( ../fooby-foo ../fooby-bar ), %w( ../barby-foo /barby-bar ), %w( /basby-foo ../basby-bar ), %w( /hip/fooby-foo fooby-bar ), %w( barby-foo barby-bar ), %w( basby-foo /hip/basby-bar ) ].each do |names|
+                it { expect( @ftp_liar.rename(o == 'file' ? names[0] + '.' + o : names[0], o == 'file' ? names[1] + '.' + o : names[1]) ).to eq nil }
+              end
+            end
+          })
+        end
       end
     end
   end

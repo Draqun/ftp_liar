@@ -69,6 +69,7 @@ module FTPLiar
 
     def close()
       # Closes the connection. Further operations are impossible until you open a new connection with connect.
+      chdir("/")
       @is_connect = false
       ""
     end
@@ -177,13 +178,7 @@ module FTPLiar
     def mkdir(dirname)
       # Creates a remote directory.
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
-      new_dirname = if dirname[0] == "/"
-        File.join(@ftp_directory, dirname[1..-1])
-      elsif dirname[0] != "/" && pwd == "/"
-        File.join(@ftp_directory, dirname)
-      else
-        File.join(@ftp_directory, pwd[1..-1], dirname)
-      end
+      new_dirname = create_path(dirname)
 
       if !absolute_path_indicates_to_ftp_directory?(new_dirname) || File.exist?(new_dirname)
         raise Net::FTPPermError.new("550")
@@ -205,13 +200,7 @@ module FTPLiar
       # A simple method to list data in directory, return list with filename if file
       # Method does not work as method in Net::FTP. I started topic about it on https://bugs.ruby-lang.org/issues/11407 because I think original method has bugs
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
-      new_path = if path[0] == "/"
-        File.join(@ftp_directory, path[1..-1])
-      elsif path[0] != "/" && pwd == "/"
-        File.join(@ftp_directory, path)
-      else
-        File.join(@ftp_directory, pwd[1..-1], path)
-      end
+      new_path = create_path(path)
 
       unless absolute_path_indicates_to_ftp_directory?(new_path)
         raise Net::FTPPermError.new("550")
@@ -280,11 +269,38 @@ module FTPLiar
     end
 
     def quit
+      raise Errno::EPIPE unless @is_connect
+      chdir("/")
       @is_connect = false
+      nil
     end
 
     def rename(fromname, toname)
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      [fromname, toname].each do |path|
+        eval(%Q{
+          if path == "/"
+            raise Net::FTPPermError.new("550")
+          end
+        })
+      end
+      fromname = create_path(fromname)
+      toname = create_path(toname)
+
+      [fromname, toname].each do |path|
+        eval(%Q{
+          unless absolute_path_indicates_to_ftp_directory?(path)
+            raise Net::FTPPermError.new("550")
+          end
+
+          if File.directory?(path) && !Dir.entries(path).sort[2..-1].empty?
+            raise Net::FTPPermError.new("550")
+          end
+        })
+      end
+
       FileUtils.mv(fromname, toname)
+      nil
     end
 
     # :nocov:
@@ -313,6 +329,7 @@ module FTPLiar
       nil
     end
 
+    # :nocov:
     def sendcmd(cmd)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
@@ -324,11 +341,13 @@ module FTPLiar
     def site(arg)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     def size(filename)
       File.size(filename)
     end
 
+    # :nocov:
     def status()
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
@@ -348,6 +367,7 @@ module FTPLiar
     def voidcmd(cmd)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     private
     attr_accessor :ftp_directory
@@ -359,6 +379,16 @@ module FTPLiar
 
     def absolute_path_indicates_to_ftp_directory?(path)
       File.absolute_path(path).start_with?(@ftp_directory)
+    end
+
+    def create_path(path)
+      if path[0] == "/"
+        File.join(@ftp_directory, path[1..-1])
+      elsif pwd == "/"
+        File.join(@ftp_directory, path)
+      else
+        File.join(@ftp_directory, pwd[1..-1], path)
+      end
     end
 
     class << self
