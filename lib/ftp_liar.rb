@@ -59,11 +59,7 @@ module FTPLiar
         raise Net::FTPPermError.new("500")
       end
 
-      begin
-        FileUtils.cd(path)
-      rescue
-        raise Net::FTPPermError.new("500")
-      end
+      FileUtils.cd(path)
       nil
     end
 
@@ -186,8 +182,6 @@ module FTPLiar
 
       Dir.mkdir(new_dirname)
       dirname
-    rescue Errno::ENOENT
-      raise Net::FTPPermError.new("550")
     end
 
     # :nocov:
@@ -344,6 +338,16 @@ module FTPLiar
     # :nocov:
 
     def size(filename)
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      filename = create_path(filename)
+      unless absolute_path_indicates_to_ftp_directory?(filename)
+        raise Net::FTPPermError.new("550")
+      end
+
+      if File.directory?(filename)
+        raise Net::FTPPermError.new("550")
+      end
+
       File.size(filename)
     end
 

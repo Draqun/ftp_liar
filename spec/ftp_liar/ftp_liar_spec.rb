@@ -31,6 +31,10 @@ RSpec.describe FTPLiar::FTPLiar do
     end
   end
 
+  describe "open" do
+    it { expect( FTPLiar::FTPLiar.open('127.0.0.1') ).to be_truthy }
+  end
+
   describe "binary" do
     before(:each) { @ftp_liar = FTPLiar::FTPLiar.new }
 
@@ -498,6 +502,41 @@ RSpec.describe FTPLiar::FTPLiar do
       it { expect( @ftp_liar.rmdir("/foo/bas") ).to be nil }
       it { expect( @ftp_liar.rmdir("bar") ).to be nil }
       it { expect( @ftp_liar.rmdir("../bas") ).to be nil }
+    end
+  end
+
+  describe "size" do
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.quit
+      end
+
+      it { expect{ @ftp_liar.size("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+    end
+
+    describe "when is connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.mkdir("foo")
+        FileUtils.touch("/tmp/.ftp_liar/foo.file")
+        File.open('/tmp/.ftp_liar/bar.file', 'w') { |file| file.write("\
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla eu volutpat nulla. Fusce eget dictum lacus. Suspendisse feugiat hendrerit facilisis. Nullam cursus tristique rutrum. Mauris quis finibus erat, quis scelerisque diam. Nam aliquam varius viverra. Sed luctus eleifend tincidunt. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Donec lacinia nunc turpis, at auctor est ornare quis. Donec ac dapibus enim, ac sollicitudin arcu. Mauris velit libero, venenatis eget tortor ac, commodo sollicitudin dolor. In sagittis rhoncus nibh nec dignissim. Phasellus et malesuada metus. Aliquam et nulla vel libero faucibus consectetur. Phasellus interdum et quam sed lacinia.\
+          Curabitur auctor dui justo, vitae finibus erat tempor a. Proin feugiat eleifend nisl, sit amet ullamcorper arcu. Etiam eu arcu faucibus, rutrum ligula eget, pellentesque tortor. Donec semper vulputate metus ac scelerisque. Cras cursus enim nec tortor blandit, sit amet accumsan orci porta. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Vivamus vitae neque ac nisi tristique semper eget at nisi. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nulla dignissim mi ut tristique lobortis. Nullam tincidunt hendrerit nunc id aliquet.\
+          Cras volutpat tellus lacus, et commodo augue lacinia quis. Praesent ultricies sodales leo, quis posuere magna interdum at. Nunc nec porta mi. Praesent ac tempus dui. Duis facilisis vulputate euismod. Maecenas tortor leo, interdum et leo vel, hendrerit dictum sapien. Nulla at convallis lectus. In vitae aliquam lacus. Aliquam a pharetra odio. Nam quis elit porttitor, ullamcorper ante a, sollicitudin leo.\
+          Sed sapien nulla, convallis a purus vitae, hendrerit sagittis nulla. Integer mattis vulputate auctor. Morbi pretium ligula varius massa pellentesque sagittis. Nam tristique rutrum lectus, vel gravida dolor semper non. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Ut amet.\
+        ") }
+      end
+      after(:all) do
+        @ftp_liar.rmdir("foo")
+        @ftp_liar.delete("foo.file")
+        @ftp_liar.delete("bar.file")
+      end
+
+      it { expect{ @ftp_liar.size("../../foo.file") }.to raise_error(Net::FTPPermError, "550") }
+      it { expect{ @ftp_liar.size("foo") }.to raise_error(Net::FTPPermError, "550") }
+      it { expect( @ftp_liar.size("foo.file") ).to be == 0 }
+      it { expect( @ftp_liar.size("bar.file") ).to be == 2096 }
     end
   end
 end
