@@ -90,7 +90,7 @@ module FTPLiar
       filename = if filename[0] == "/"
         File.join(@ftp_directory, filename[1..-1])
       else
-        File.join(pwd, filename)
+        File.join(@ftp_directory, pwd[1..-1], filename)
       end
       unless absolute_path_indicates_to_ftp_directory?(filename) && File.exist?(filename)
         raise Net::FTPPermError.new("550")
@@ -111,7 +111,7 @@ module FTPLiar
       raise Net::FTPPermError("530 Please login with USER and PASS.") unless @is_connect
       if remotefile[0] == "/"
         if remotefile.length > 1
-          remotefile = File.join(pwd, remotefile[1..-1])
+          remotefile = File.join(@ftp_directory, pwd[1..-1], remotefile[1..-1])
         elsif remotefile == "/"
           raise Errno::EISDIR
         end
@@ -177,10 +177,19 @@ module FTPLiar
     def mkdir(dirname)
       # Creates a remote directory.
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
-      if dirname.split("/").include?("..") || dirname.include?("/")
+      new_dirname = if dirname[0] == "/"
+        File.join(@ftp_directory, dirname[1..-1])
+      elsif dirname[0] != "/" && pwd == "/"
+        File.join(@ftp_directory, dirname)
+      else
+        File.join(@ftp_directory, pwd[1..-1], dirname)
+      end
+
+      if !absolute_path_indicates_to_ftp_directory?(new_dirname) || File.exist?(new_dirname)
         raise Net::FTPPermError.new("550")
       end
-      Dir.mkdir( File.join(pwd, dirname) )
+
+      Dir.mkdir(new_dirname)
       dirname
     rescue Errno::ENOENT
       raise Net::FTPPermError.new("550")
@@ -197,9 +206,11 @@ module FTPLiar
       # Method does not work as method in Net::FTP. I started topic about it on https://bugs.ruby-lang.org/issues/11407 because I think original method has bugs
       raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
       new_path = if path[0] == "/"
-        File.join(pwd, path[1..-1])
+        File.join(@ftp_directory, path[1..-1])
+      elsif path[0] != "/" && pwd == "/"
+        File.join(@ftp_directory, path)
       else
-        File.join(pwd, path)
+        File.join(@ftp_directory, pwd[1..-1], path)
       end
 
       unless absolute_path_indicates_to_ftp_directory?(new_path)
@@ -259,17 +270,24 @@ module FTPLiar
 
     def pwd
       # Method return actual directory
-      raise Exception("530 Please login with USER and PASS.") unless @is_connect
-      Dir.pwd
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      ftp_directory_length = @ftp_directory.length
+      if Dir.pwd == @ftp_directory
+        "/"
+      else
+        Dir.pwd[ftp_directory_length..-1]
+      end
     end
 
     def quit
+      @is_connect = false
     end
 
     def rename(fromname, toname)
       FileUtils.mv(fromname, toname)
     end
 
+    # :nocov:
     def retrbinary(cmd, blocksize, rest_offset = nil)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
@@ -277,11 +295,22 @@ module FTPLiar
     def retrlines(cmd)
       raise NotImplementedError("Method not implemented. Override it if you want use this method.")
     end
+    # :nocov:
 
     def rmdir(dirname)
       # Method remove directory on FTP
-      raise Exception("530 Please login with USER and PASS.") unless @is_connect
+      raise Net::FTPPermError.new("530 Please login with USER and PASS.") unless @is_connect
+      dirname = if dirname[0] == "/"
+        File.join(@ftp_directory, dirname[1..-1])
+      else
+        File.join(@ftp_directory, pwd[1..-1], dirname)
+      end
+
+      if File.file?(dirname) || !File.exist?(dirname)
+        raise Net::FTPPermError.new("550")
+      end
       Dir.delete(dirname)
+      nil
     end
 
     def sendcmd(cmd)

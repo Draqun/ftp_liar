@@ -62,7 +62,7 @@ RSpec.describe FTPLiar::FTPLiar do
       describe "when using \"/\" as path it should go to temporary directory" do
         before(:all) { @ftp_liar.chdir("/") }
 
-        it { expect( @ftp_liar.pwd ).to eq("/tmp/.ftp_liar") }
+        it { expect( @ftp_liar.pwd ).to eq("/") }
       end
 
       describe "should raise error" do
@@ -124,7 +124,8 @@ RSpec.describe FTPLiar::FTPLiar do
       end
 
       describe "should delete file" do
-        before(:all) { FileUtils.mkdir("/tmp/.ftp_liar/hip") }
+        before(:all) { @ftp_liar.mkdir("/hip") }
+        after(:all) { @ftp_liar.rmdir("/hip") }
 
         describe "when path is relative" do
           before(:all) do
@@ -221,14 +222,23 @@ RSpec.describe FTPLiar::FTPLiar do
 
     describe "when is connected" do
       before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
-      pending("clean when rmdir method will be work")
-      after(:all) {  }
+      after(:all) do
+        @ftp_liar.rmdir("/bas")
+        @ftp_liar.rmdir("/bar")
+        @ftp_liar.rmdir("/..bas")
+      end
 
       it { expect{ @ftp_liar.mkdir("../../tmp") }.to raise_error(Net::FTPPermError, "550") }
       it { expect{ @ftp_liar.mkdir("/") }.to raise_error(Net::FTPPermError, "550") }
-      it { expect{ @ftp_liar.mkdir("/bas") }.to raise_error(Net::FTPPermError, "550") }
-      it { expect( @ftp_liar.mkdir("bas") ).to eq "bas" }
+      it { expect( @ftp_liar.mkdir("/bas") ).to eq "/bas" }
+      it { expect( @ftp_liar.mkdir("bar") ).to eq "bar" }
       it { expect( @ftp_liar.mkdir("..bas") ).to eq "..bas" }
+      describe "into bas" do
+        before(:all) { @ftp_liar.chdir("bas") }
+        after(:all) { @ftp_liar.rmdir("foo") }
+
+        it { expect( @ftp_liar.mkdir("foo") ).to eq "foo" }
+      end
     end
   end
 
@@ -245,7 +255,7 @@ RSpec.describe FTPLiar::FTPLiar do
     describe "when is connected" do
       before(:all) do
         @ftp_liar = FTPLiar::FTPLiar.new
-        FileUtils.mkdir("/tmp/.ftp_liar/foo")
+        @ftp_liar.mkdir("/foo")
         FileUtils.touch("/tmp/.ftp_liar/foo.file")
         FileUtils.touch("/tmp/.ftp_liar/foo/foo.file")
         FileUtils.touch("/tmp/.ftp_liar/foo/bar.file")
@@ -287,8 +297,7 @@ RSpec.describe FTPLiar::FTPLiar do
         @ftp_liar.mkdir("foo")
         FileUtils.touch("/tmp/foo.file")
       end
-      pending("clean when rmdir method will be work")
-      after(:all) {}
+      after(:all) { @ftp_liar.rmdir("foo") }
 
       it { expect{ @ftp_liar.put("/tmp") }.to raise_error(Errno::EISDIR) }
       it { expect{ @ftp_liar.put("/tmp/bar.file") }.to raise_error(Errno::ENOENT) }
@@ -298,15 +307,17 @@ RSpec.describe FTPLiar::FTPLiar do
       it { expect{ @ftp_liar.put("/tmp/foo.file", "../../home") }.to raise_error(Net::FTPPermError, "550") }
 
       describe "withoud remotefile" do
-        pending("clean when rmdir method will be work")
-        after(:all) {}
+        after(:all) { @ftp_liar.delete("foo.file") }
         it { expect( @ftp_liar.put("/tmp/foo.file") ).to satisfy { |v| File.exist?("/tmp/.ftp_liar/foo.file") } }
       end
 
       describe "relative path" do
         before(:all) { @ftp_liar.chdir('foo') }
-        pending("clean when rmdir method will be work")
-        after(:all) { @ftp_liar.chdir('..') }
+        after(:all) do
+          @ftp_liar.delete("foo.file")
+          @ftp_liar.chdir('..')
+          @ftp_liar.delete("foo.file")
+        end
 
         it { expect( @ftp_liar.put("/tmp/foo.file", "foo.file") ).to satisfy { |v| File.exist?("/tmp/.ftp_liar/foo/foo.file") == true } }
         it { expect( @ftp_liar.put("/tmp/foo.file", "../foo.file") ).to satisfy { |v| File.exist?("/tmp/.ftp_liar/foo.file") == true } }
@@ -314,8 +325,11 @@ RSpec.describe FTPLiar::FTPLiar do
 
       describe "absolute path" do
         before(:all) { @ftp_liar.chdir('foo') }
-        pending("clean when rmdir method will be work")
-        after(:all) { @ftp_liar.chdir('..') }
+        after(:all) do
+          @ftp_liar.delete("foo.file")
+          @ftp_liar.chdir('..')
+          @ftp_liar.delete("foo.file")
+        end
 
         it { expect( @ftp_liar.put("/tmp/foo.file", "/foo/foo.file") ).to satisfy { |v| File.exist?("/tmp/.ftp_liar/foo/foo.file") } }
         it { expect( @ftp_liar.put("/tmp/foo.file", "/foo.file") ).to satisfy { |v| File.exist?("/tmp/.ftp_liar/foo.file") } }
@@ -324,10 +338,67 @@ RSpec.describe FTPLiar::FTPLiar do
   end
 
   describe "pwd" do
-    before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
 
-    # TODO Check it raise error before login
+      it { expect{ @ftp_liar.pwd }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+    end
 
-    it { expect( @ftp_liar.getdir ).to eq "/tmp/.ftp_liar" }
+    describe "when is connected" do
+      before(:all) { @ftp_liar = FTPLiar::FTPLiar.new }
+
+      it { expect( @ftp_liar.getdir ).to eq "/" }
+
+      describe "from subfolder" do
+        before(:all) do
+          @ftp_liar.mkdir("foo")
+          @ftp_liar.chdir("foo")
+        end
+        after(:all) do
+          @ftp_liar.chdir("..")
+          @ftp_liar.rmdir("foo")
+        end
+
+        it { expect( @ftp_liar.pwd ).to eq "/foo" }
+      end
+    end
+  end
+
+  describe "rmdir" do
+    describe "when is not connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.close
+      end
+
+      it { expect{ @ftp_liar.rmdir("foo") }.to raise_error(Net::FTPPermError, "530 Please login with USER and PASS.") }
+    end
+
+    describe "when is connected" do
+      before(:all) do
+        @ftp_liar = FTPLiar::FTPLiar.new
+        @ftp_liar.mkdir("foo")
+        @ftp_liar.mkdir("bar")
+        @ftp_liar.mkdir("bas")
+        @ftp_liar.mkdir("foo/bar")
+        @ftp_liar.mkdir("foo/bas")
+        FileUtils.touch("/tmp/.ftp_liar/foo.file")
+        @ftp_liar.chdir("foo")
+      end
+      after(:all) do
+        @ftp_liar.chdir("/")
+        @ftp_liar.delete("foo.file")
+        @ftp_liar.rmdir("foo")
+      end
+
+      it { expect{ @ftp_liar.rmdir("/foo.file") }.to raise_error(Net::FTPPermError, "550") }
+      it { expect( @ftp_liar.rmdir("/bar") ).to be nil }
+      it { expect( @ftp_liar.rmdir("/foo/bas") ).to be nil }
+      it { expect( @ftp_liar.rmdir("bar") ).to be nil }
+      it { expect( @ftp_liar.rmdir("../bas") ).to be nil }
+    end
   end
 end
